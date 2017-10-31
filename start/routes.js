@@ -17,6 +17,8 @@
 
 const Route = use('Route')
 const ApolloServer = use('ApolloServer')
+const Faker = use('Faker')
+
 const { makeExecutableSchema } = require('graphql-tools')
 
 const typeDefs = [`
@@ -169,12 +171,35 @@ type Store {
     #radius(unit: LengthUnit = METER): Float
 }
 type Location {
-    name: String!
+    name: String
     long: Float!
     lat: Float!
 }
 
 `];
+
+var fakeDb = {
+    users: [],
+    stores: {
+        getStoreById: function (id, data) {
+            return data.filter(
+                function (data) { return data.id == id }
+            )
+        },
+        data: [
+            {
+                id: "1",
+                name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
+                location: {
+                    name: Faker.address.city(),
+                    long: Faker.address.longitude(),
+                    lat: Faker.address.longitude(),
+                }
+            }
+        ],
+    }
+}
+
 
 const resolvers = {
     Query: {
@@ -182,7 +207,7 @@ const resolvers = {
             return 'world';
         },
         store(root, { id }, context) {
-            return 'world';
+            return fakeDb.stores.getStoreById(id, fakeDb.stores.data);
         },
         merchant(root, { id }, context) {
             return 'world';
