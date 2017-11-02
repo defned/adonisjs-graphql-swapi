@@ -18,6 +18,8 @@
 const Route = use('Route')
 const ApolloServer = use('ApolloServer')
 const Faker = use('Faker')
+var _ = require('lodash');
+//const { find, filter } = require('lodash');
 
 const { makeExecutableSchema } = require('graphql-tools')
 
@@ -30,6 +32,11 @@ schema {
 }
 # The query type, represents all of the entry points into our object graph
 type Query {
+    allFlyers: [Flyer]
+    allStores: [Store]
+    allMerchants: [Merchant]
+    allConsumers: [Consumer]
+
     #search(text: String!): [SearchResult]!
     flyer(id: ID!): Flyer
     store(id: ID!): Store
@@ -152,6 +159,10 @@ type PageInfo {
 type Flyer {
     # The ID of the consumer
     id: ID!
+
+    # The owner store
+    store: Store!
+
     # The name of the flyer
     name: String!
 
@@ -169,6 +180,11 @@ type Store {
     location: Location
 
     #radius(unit: LengthUnit = METER): Float
+
+    # Belonging flyers
+    flyers: [Flyer]
+    # The flyers of the user exposed as a connection with edges
+    flyersConnection(first: Int, after: ID): FlyersConnection!
 }
 type Location {
     name: String
@@ -179,43 +195,186 @@ type Location {
 `];
 
 var fakeDb = {
-    users: [],
-    stores: {
-        getStoreById: function (id, data) {
-            return data.filter(
-                function (data) { return data.id == id }
-            )
-        },
-        data: [
+    users: {
+        merchants: [
             {
-                id: "1",
-                name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
-                location: {
-                    name: Faker.address.city(),
-                    long: Faker.address.longitude(),
-                    lat: Faker.address.longitude(),
-                }
+                id: 'm1',
+                name: Faker.name.findName(),
+                budget: 100,
+                stores: ['s1', 's2'],
+            },
+            {
+                id: 'm2',
+                budget: 500,
+                name: Faker.name.findName(),
+                stores: ['s3', 's4'],
             }
         ],
-    }
+        consumers: [
+            {
+                id: 'c1',
+                name: Faker.name.findName(),
+                firends: ['c2'],
+                flyers: ['f1', 'f2', 'f3'],
+            },
+            {
+                id: 'c2',
+                name: Faker.name.findName(),
+                firends: ['c1'],
+                flyers: ['f2', 'f3', 'f4'],
+            }
+        ],
+    },
+    stores: [
+        {
+            id: 's1',
+            name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
+            location: {
+                name: Faker.address.city(),
+                long: Faker.address.longitude(),
+                lat: Faker.address.longitude(),
+            },
+            flyers: ['f1', 'f2', 'f3', 'f4']
+        },
+        {
+            id: 's2',
+            name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
+            location: {
+                name: Faker.address.city(),
+                long: Faker.address.longitude(),
+                lat: Faker.address.longitude(),
+            },
+            flyers: ['f5', 'f6']
+        },
+        {
+            id: 's3',
+            name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
+            location: {
+                name: Faker.address.city(),
+                long: Faker.address.longitude(),
+                lat: Faker.address.longitude(),
+            },
+            flyers: ['f7', 'f8']
+        },
+        {
+            id: 's4',
+            name: Faker.name.firstName() + '\'s ' + Faker.commerce.department(),
+            location: {
+                name: Faker.address.city(),
+                long: Faker.address.longitude(),
+                lat: Faker.address.longitude(),
+            },
+            flyers: ['f9']
+        },
+    ],
+    flyers: [
+        {
+            id: 'f1',
+            storeId: 's1',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f2',
+            storeId: 's1',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f3',
+            storeId: 's1',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f4',
+            storeId: 's1',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f5',
+            storeId: 's2',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f6',
+            storeId: 's2',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f7',
+            storeId: 's3',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f8',
+            storeId: 's3',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+        {
+            id: 'f9',
+            storeId: 's4',
+            name: Faker.commerce.productName(),
+            state: 'NOTUSED'
+        },
+    ]
 }
-
 
 const resolvers = {
     Query: {
-        flyer(root, { id }, context) {
-            return 'world';
+        allFlyers: (_, { id }) => fakeDb.flyers,
+        allStores: (_, { id }) => fakeDb.stores,
+        allMerchants: (_, { id }) => fakeDb.merchants,
+        allConsumers: (_, { id }) => fakeDb.consumers,
+
+        flyer: (_, { id }) => fakeDb.flyers.find(a => a.id === id),
+        store: (_, { id }) => fakeDb.stores.find(a => a.id === id),
+        merchant: (_, { id }) => fakeDb.users.merchants.find(a => a.id === id),
+        consumer: (_, { id }) => fakeDb.users.consumers.find(a => a.id === id),
+    },
+
+    User: {
+        __resolveType(obj, context, info) {
+            if (obj.budget) {
+                return 'Merchant';
+            } else {
+                return 'User';
+            }
+            return null;
         },
-        store(root, { id }, context) {
-            return fakeDb.stores.getStoreById(id, fakeDb.stores.data);
+    },
+    Consumer: {
+        flyers(consumer) {
+            return _(fakeDb.flyers)
+                .keyBy('id')
+                .at(consumer.flyers)
+                .value()
         },
-        merchant(root, { id }, context) {
-            return 'world';
+    },
+    Merchant: {
+        stores(merchant) {
+            return _(fakeDb.stores)
+                .keyBy('id')
+                .at(merchant.stores)
+                .value()
         },
-        consumer(root, { id }, context) {
-            return 'world';
+    },
+    Store: {
+        flyers(store) {
+            return _(fakeDb.flyers)
+                .keyBy('id')
+                .at(store.flyers)
+                .value()
         },
-    }
+    },
+    Flyer: {
+        store: (flyer) => fakeDb.stores.find(a => a.id === flyer.storeId ),
+    },
 }
 
 const schema = makeExecutableSchema({ typeDefs, resolvers })
